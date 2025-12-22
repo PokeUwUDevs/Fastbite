@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastBite - Mis Pedidos</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">🍔 FastBite</a>
+            <div class="nav-links">
+                <a href="/customer/menu">Menú</a>
+                <a href="/customer/orders">Mis Pedidos</a>
+                <span>🛒 <span class="cart-count">0</span></span>
+                <div class="user-info"></div>
+            </div>
+        </div>
+    </nav>
+    
+    <main class="container" style="padding: 20px;">
+        <h2 style="margin-bottom: 20px;">📦 Mis Pedidos</h2>
+        
+        <div id="orders-container">
+            <p class="text-center" style="color: var(--gray);">Cargando pedidos...</p>
+        </div>
+    </main>
+    
+    <!-- Modal de detalle de pedido -->
+    <div class="modal-overlay" id="order-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Pedido <span id="modal-order-id"></span></h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Timeline de estado -->
+                <div class="order-timeline" id="modal-timeline"></div>
+                
+                <!-- Detalles del pedido -->
+                <div class="card">
+                    <h4>Productos</h4>
+                    <div id="modal-items"></div>
+                    <div class="cart-total" style="margin-top: 10px;">
+                        <span>Total:</span>
+                        <span id="modal-total"></span>
+                    </div>
+                </div>
+                
+                <!-- Info de entrega -->
+                <div class="card">
+                    <h4>📍 Dirección de entrega</h4>
+                    <p id="modal-address"></p>
+                    <p id="modal-notes" style="color: var(--gray); font-style: italic;"></p>
+                </div>
+                
+                <!-- Comentarios -->
+                <div class="comments-section">
+                    <h4>💬 Comentarios</h4>
+                    <div class="comments-list" id="modal-comments"></div>
+                    <div class="comment-form">
+                        <input type="text" id="comment-input" class="form-control" 
+                               placeholder="Escribe un mensaje...">
+                        <button class="btn btn-primary" onclick="sendComment()">Enviar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/js/app.js"></script>
+    <script>
+        // Verificar autenticación
+        if (!Auth.isAuthenticated()) {
+            window.location.href = '/login';
+        }
+        
+        const user = Auth.getUser();
+        if (user.role !== 'CLIENTE') {
+            Auth.redirectBasedOnRole();
+        }
+        
+        let orders = [];
+        let currentOrderId = null;
+        let sseConnection = null;
+        let commentSSE = null;
+        
+        const statusOrder = ['RECIBIDO', 'PREPARANDO', 'LISTO', 'EN_CAMINO', 'ENTREGADO'];
+        
+        async function loadOrders() {
+            try {
+                orders = await API.getMyOrders();
+                renderOrders();
+                setupSSE();
+            } catch (error) {
+                console.error('Error loading orders:', error);
+            }
+        }
+        
+        function renderOrders() {
+            const container = document.getElementById('orders-container');
+            
+            if (orders.length === 0) {
+                container.innerHTML = `
+                    <div class="card text-center">
+                        <p>No tienes pedidos aún</p>
+                        <a href="/customer/menu" class="btn btn-primary mt-20">Ver Menú</a>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Ordenar por fecha más reciente
+            orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            
+            container.innerHTML = orders.map(order => `
+                <div class="card" style="cursor: pointer;" onclick="openOrderDetail('${order.id}')">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>#${order.id.substring(0, 8)}</strong>
+                            <span style="margin-left: 10px; color: var(--gray);">
+                                ${UI.formatDateTime(order.createdAt)}
+                            </span>
+                        </div>
+                        <div>
+                            <span class="user-badge" style="background: ${getStatusColor(order.status)};">
+                                ${UI.getStatusLabel(order.status)}
+                            </span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; color: var(--gray);">
+                        ${order.items.length} productos • ${UI.formatPrice(order.total)}
+                    </div>
+                    <div class="order-timeline" style="margin: 15px 0;">
+                        ${renderMiniTimeline(order.status)}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function renderMiniTimeline(currentStatus) {
+            const statusIndex = statusOrder.indexOf(currentStatus);
+            return statusOrder.map((status, index) => {
+                let className = '';
+                if (index < statusIndex) className = 'completed';
+                else if (index === statusIndex) className = 'active';
+                
+                return `
+                    <div class="timeline-step ${className}">
+                        <div class="timeline-icon">${getStatusIcon(status)}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function getStatusIcon(status) {
+            const icons = {
+                'RECIBIDO': '📥',
+                'PREPARANDO': '👨‍🍳',
+                'LISTO': '✅',
+                'EN_CAMINO': '🛵',
+                'ENTREGADO': '🎉'
+            };
+            return icons[status] || '•';
+        }
+        
+        function getStatusColor(status) {
+            const colors = {
+                'RECIBIDO': '#6c757d',
+                'PREPARANDO': '#ffc107',
+                'LISTO': '#28a745',
+                'EN_CAMINO': '#007bff',
+                'ENTREGADO': '#28a745'
+            };
+            return colors[status] || '#6c757d';
+        }
+        
+        async function openOrderDetail(orderId) {
+            currentOrderId = orderId;
+            const order = orders.find(o => o.id === orderId);
+            
+            if (!order) return;
+            
+            // Llenar modal
+            document.getElementById('modal-order-id').textContent = '#' + orderId.substring(0, 8);
+            document.getElementById('modal-address').textContent = order.deliveryAddress;
+            document.getElementById('modal-notes').textContent = order.notes || '';
+            document.getElementById('modal-total').textContent = UI.formatPrice(order.total);
+            
+            // Items
+            document.getElementById('modal-items').innerHTML = order.items.map(item => `
+                <div style="display: flex; justify-content: space-between; padding: 5px 0;">
+                    <span>${item.productName} x${item.quantity}</span>
+                    <span>${UI.formatPrice(item.unitPrice * item.quantity)}</span>
+                </div>
+            `).join('');
+            
+            // Timeline
+            renderModalTimeline(order.status);
+            
+            // Cargar comentarios
+            await loadComments(orderId);
+            
+            // Conectar SSE de comentarios
+            connectCommentSSE(orderId);
+            
+            // Mostrar modal
+            document.getElementById('order-modal').classList.add('active');
+        }
+        
+        function renderModalTimeline(currentStatus) {
+            const statusIndex = statusOrder.indexOf(currentStatus);
+            document.getElementById('modal-timeline').innerHTML = statusOrder.map((status, index) => {
+                let className = '';
+                if (index < statusIndex) className = 'completed';
+                else if (index === statusIndex) className = 'active';
+                
+                return `
+                    <div class="timeline-step ${className}">
+                        <div class="timeline-icon">${getStatusIcon(status)}</div>
+                        <div class="timeline-label">${status.replace('_', ' ')}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function closeModal() {
+            document.getElementById('order-modal').classList.remove('active');
+            currentOrderId = null;
+            
+            // Desconectar SSE de comentarios
+            if (commentSSE) {
+                commentSSE.close();
+                commentSSE = null;
+            }
+        }
+        
+        async function loadComments(orderId) {
+            try {
+                const comments = await API.getComments(orderId);
+                renderComments(comments);
+            } catch (error) {
+                console.error('Error loading comments:', error);
+            }
+        }
+        
+        function renderComments(comments) {
+            const container = document.getElementById('modal-comments');
+            
+            if (comments.length === 0) {
+                container.innerHTML = '<p style="color: var(--gray); text-align: center;">Sin comentarios</p>';
+                return;
+            }
+            
+            container.innerHTML = comments.map(comment => `
+                <div class="comment role-${comment.userRole}" data-comment-id="${comment.id}">
+                    <div class="comment-header">
+                        <span class="comment-author">
+                            ${UI.getRoleIcon(comment.userRole)} ${comment.userName}
+                        </span>
+                        <span class="comment-time">${UI.formatTime(comment.createdAt)}</span>
+                    </div>
+                    <div class="comment-message">${comment.message}</div>
+                </div>
+            `).join('');
+            
+            // Scroll al final
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function connectCommentSSE(orderId) {
+            if (commentSSE) {
+                commentSSE.close();
+            }
+            
+            commentSSE = new EventSource(`/api/orders/${orderId}/comments/stream`);
+            commentSSE.onmessage = (event) => {
+                const comment = JSON.parse(event.data);
+                addCommentToList(comment);
+            };
+        }
+        
+        function addCommentToList(comment) {
+            const container = document.getElementById('modal-comments');
+            
+            // Evitar duplicados
+            if (container.querySelector(`[data-comment-id="${comment.id}"]`)) {
+                return;
+            }
+            
+            const noComments = container.querySelector('p');
+            if (noComments) {
+                container.innerHTML = '';
+            }
+            
+            container.innerHTML += `
+                <div class="comment role-${comment.userRole}" data-comment-id="${comment.id}">
+                    <div class="comment-header">
+                        <span class="comment-author">
+                            ${UI.getRoleIcon(comment.userRole)} ${comment.userName}
+                        </span>
+                        <span class="comment-time">${UI.formatTime(comment.createdAt)}</span>
+                    </div>
+                    <div class="comment-message">${comment.message}</div>
+                </div>
+            `;
+            
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        async function sendComment() {
+            const input = document.getElementById('comment-input');
+            const message = input.value.trim();
+            
+            if (!message || !currentOrderId) return;
+            
+            try {
+                const comment = await API.addComment(currentOrderId, message);
+                input.value = '';
+                // Mostrar comentario inmediatamente (optimistic update)
+                if (comment) {
+                    addCommentToList(comment);
+                }
+            } catch (error) {
+                UI.showAlert('Error al enviar comentario', 'error');
+            }
+        }
+        
+        // Enviar comentario con Enter
+        document.getElementById('comment-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendComment();
+            }
+        });
+        
+        function setupSSE() {
+            // Conectar a stream de órdenes para actualizaciones
+            sseConnection = new EventSource('/api/orders/stream');
+            sseConnection.onmessage = (event) => {
+                const orderEvent = JSON.parse(event.data);
+                handleOrderEvent(orderEvent);
+            };
+        }
+        
+        function handleOrderEvent(event) {
+            // Buscar el pedido en nuestra lista
+            const orderIndex = orders.findIndex(o => o.id === event.orderId);
+            
+            if (orderIndex !== -1 && event.order) {
+                // Solo actualizar si es nuestro pedido
+                if (event.order.customerId === user.id) {
+                    orders[orderIndex] = event.order;
+                    renderOrders();
+                    
+                    // Si tenemos el modal abierto de este pedido, actualizar
+                    if (currentOrderId === event.orderId) {
+                        renderModalTimeline(event.order.status);
+                    }
+                    
+                    // Notificar cambio de estado
+                    if (event.eventType === 'STATUS_CHANGED') {
+                        UI.showAlert(`Tu pedido está: ${UI.getStatusLabel(event.status)}`, 'info');
+                    }
+                }
+            }
+        }
+        
+        // Cleanup al salir
+        window.addEventListener('beforeunload', () => {
+            if (sseConnection) sseConnection.close();
+            if (commentSSE) commentSSE.close();
+        });
+        
+        // Inicializar
+        loadOrders();
+    </script>
+</body>
+</html>

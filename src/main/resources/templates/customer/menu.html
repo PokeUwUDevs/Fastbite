@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastBite - Menú</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">🍔 FastBite</a>
+            <div class="nav-links">
+                <a href="/customer/menu">Menú</a>
+                <a href="/customer/orders">Mis Pedidos</a>
+                <span>🛒 <span class="cart-count">0</span></span>
+                <div class="user-info"></div>
+            </div>
+        </div>
+    </nav>
+    
+    <main class="container" style="padding: 20px;">
+        <div style="display: grid; grid-template-columns: 1fr 350px; gap: 30px;">
+            <!-- Productos -->
+            <div>
+                <h2 style="margin-bottom: 20px;">🍽️ Nuestro Menú</h2>
+                <div class="products-grid" id="products-container">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+            
+            <!-- Carrito -->
+            <div>
+                <div class="cart-section">
+                    <h3 style="margin-bottom: 15px;">🛒 Tu Carrito</h3>
+                    
+                    <div id="cart-items">
+                        <p class="text-center" style="color: var(--gray);">Tu carrito está vacío</p>
+                    </div>
+                    
+                    <div class="cart-total" id="cart-total" style="display: none;">
+                        <span>Total:</span>
+                        <span id="total-amount">$0.00</span>
+                    </div>
+                    
+                    <div id="checkout-section" style="display: none; margin-top: 20px;">
+                        <div class="form-group">
+                            <label for="address">Dirección de entrega</label>
+                            <input type="text" id="address" class="form-control" 
+                                   placeholder="Ej: Calle Principal 123">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="notes">Notas (opcional)</label>
+                            <input type="text" id="notes" class="form-control" 
+                                   placeholder="Ej: Sin cebolla">
+                        </div>
+                        
+                        <button class="btn btn-primary btn-lg" style="width: 100%;" 
+                                onclick="submitOrder()">
+                            🛵 Realizar Pedido
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script src="/js/app.js"></script>
+    <script>
+        // Verificar autenticación
+        if (!Auth.isAuthenticated()) {
+            window.location.href = '/login';
+        }
+        
+        const user = Auth.getUser();
+        if (user.role !== 'CLIENTE') {
+            Auth.redirectBasedOnRole();
+        }
+        
+        let products = [];
+        
+        // Cargar productos
+        async function loadProducts() {
+            try {
+                products = await API.getProducts();
+                renderProducts();
+            } catch (error) {
+                console.error('Error loading products:', error);
+            }
+        }
+        
+        function renderProducts() {
+            const container = document.getElementById('products-container');
+            container.innerHTML = products.map(product => `
+                <div class="product-card">
+                    <div class="product-image">${product.imageUrl}</div>
+                    <div class="product-info">
+                        <div class="product-name">${product.name}</div>
+                        <div class="product-description">${product.description}</div>
+                        <div class="product-price">${UI.formatPrice(product.price)}</div>
+                        <button class="btn btn-primary btn-sm mt-10" 
+                                onclick="addToCart('${product.id}')">
+                            + Agregar
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function addToCart(productId) {
+            const product = products.find(p => p.id === productId);
+            if (product) {
+                Cart.addItem(product);
+                UI.showAlert(`${product.name} agregado al carrito`, 'success');
+            }
+        }
+        
+        function renderCart() {
+            const items = Cart.getItems();
+            const container = document.getElementById('cart-items');
+            const totalEl = document.getElementById('cart-total');
+            const checkoutEl = document.getElementById('checkout-section');
+            
+            if (items.length === 0) {
+                container.innerHTML = '<p class="text-center" style="color: var(--gray);">Tu carrito está vacío</p>';
+                totalEl.style.display = 'none';
+                checkoutEl.style.display = 'none';
+                return;
+            }
+            
+            container.innerHTML = items.map(item => `
+                <div class="cart-item">
+                    <div class="cart-item-info">
+                        <div class="cart-item-name">${item.productName}</div>
+                        <div class="cart-item-price">${UI.formatPrice(item.unitPrice)} c/u</div>
+                    </div>
+                    <div class="cart-item-actions">
+                        <div class="quantity-control">
+                            <button onclick="updateQuantity('${item.productId}', ${item.quantity - 1})">−</button>
+                            <span>${item.quantity}</span>
+                            <button onclick="updateQuantity('${item.productId}', ${item.quantity + 1})">+</button>
+                        </div>
+                        <button class="btn btn-danger btn-sm" onclick="removeFromCart('${item.productId}')">🗑</button>
+                    </div>
+                </div>
+            `).join('');
+            
+            document.getElementById('total-amount').textContent = UI.formatPrice(Cart.getTotal());
+            totalEl.style.display = 'flex';
+            checkoutEl.style.display = 'block';
+        }
+        
+        function updateQuantity(productId, quantity) {
+            Cart.updateQuantity(productId, quantity);
+        }
+        
+        function removeFromCart(productId) {
+            Cart.removeItem(productId);
+        }
+        
+        async function submitOrder() {
+            const address = document.getElementById('address').value;
+            const notes = document.getElementById('notes').value;
+            
+            if (!address.trim()) {
+                UI.showAlert('Por favor ingresa tu dirección de entrega', 'error');
+                return;
+            }
+            
+            const items = Cart.getItems();
+            if (items.length === 0) {
+                UI.showAlert('Tu carrito está vacío', 'error');
+                return;
+            }
+            
+            try {
+                const order = await API.createOrder({
+                    deliveryAddress: address,
+                    notes: notes,
+                    items: items.map(item => ({
+                        productId: item.productId,
+                        quantity: item.quantity
+                    }))
+                });
+                
+                if (order) {
+                    Cart.clear();
+                    UI.showAlert('¡Pedido creado exitosamente!', 'success');
+                    // Redirigir al tracking
+                    setTimeout(() => {
+                        window.location.href = `/customer/orders`;
+                    }, 1500);
+                }
+            } catch (error) {
+                UI.showAlert('Error al crear el pedido', 'error');
+            }
+        }
+        
+        // Escuchar cambios del carrito
+        window.addEventListener('cartUpdated', renderCart);
+        
+        // Inicializar
+        loadProducts();
+        renderCart();
+    </script>
+</body>
+</html>

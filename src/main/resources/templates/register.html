@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastBite - Registro</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="logo">🍔</div>
+            <h1>Crear Cuenta</h1>
+            
+            <div id="alert-container"></div>
+            
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="name">Nombre</label>
+                    <input type="text" id="name" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="phone">Teléfono</label>
+                    <input type="tel" id="phone" class="form-control">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Contraseña</label>
+                    <input type="password" id="password" class="form-control" minlength="6" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="role">Tipo de Usuario</label>
+                    <select id="role" class="form-control" required>
+                        <option value="CLIENTE">Cliente</option>
+                        <option value="COCINA">Personal de Cocina</option>
+                        <option value="REPARTIDOR">Repartidor</option>
+                    </select>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">
+                    Registrarse
+                </button>
+            </form>
+            
+            <div class="auth-footer">
+                ¿Ya tienes cuenta? <a href="/login">Inicia Sesión</a>
+                <br><br>
+                <a href="/" style="color: var(--gray);">← Volver al inicio</a>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/js/app.js"></script>
+    <script>
+        // Si ya está autenticado, redirigir
+        if (Auth.isAuthenticated()) {
+            Auth.redirectBasedOnRole();
+        }
+        
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const data = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
+                password: document.getElementById('password').value,
+                role: document.getElementById('role').value
+            };
+            
+            try {
+                const response = await API.register(data);
+                
+                if (response) {
+                    Auth.saveAuth(response);
+                    Auth.redirectBasedOnRole();
+                } else {
+                    showError('Error al registrar usuario');
+                }
+            } catch (error) {
+                showError('Email ya registrado o datos inválidos');
+            }
+        });
+        
+        function showError(message) {
+            const container = document.getElementById('alert-container');
+            container.innerHTML = `<div class="alert alert-error">${message}</div>`;
+        }
+    </script>
+</body>
+</html>

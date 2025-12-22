@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastBite - Panel de Cocina</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">🍔 FastBite</a>
+            <div class="nav-links">
+                <span>👨‍🍳 Panel de Cocina</span>
+                <div class="user-info"></div>
+            </div>
+        </div>
+    </nav>
+    
+    <main class="container" style="padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>👨‍🍳 Panel de Cocina</h2>
+            <div>
+                <span id="stats-today">Pedidos hoy: --</span>
+                <span style="margin-left: 20px;" id="connection-status">🔴 Conectando...</span>
+            </div>
+        </div>
+        
+        <div class="kitchen-grid">
+            <!-- Columna: Nuevos -->
+            <div class="kitchen-column column-nuevos">
+                <div class="kitchen-column-header">
+                    <span>🔴</span>
+                    <h3>Nuevos</h3>
+                    <span class="order-count" id="count-nuevos">0</span>
+                </div>
+                <div id="orders-nuevos"></div>
+            </div>
+            
+            <!-- Columna: Preparando -->
+            <div class="kitchen-column column-preparando">
+                <div class="kitchen-column-header">
+                    <span>🟡</span>
+                    <h3>Preparando</h3>
+                    <span class="order-count" id="count-preparando">0</span>
+                </div>
+                <div id="orders-preparando"></div>
+            </div>
+            
+            <!-- Columna: Listos -->
+            <div class="kitchen-column column-listos">
+                <div class="kitchen-column-header">
+                    <span>🟢</span>
+                    <h3>Listos</h3>
+                    <span class="order-count" id="count-listos">0</span>
+                </div>
+                <div id="orders-listos"></div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Modal de detalle de pedido -->
+    <div class="modal-overlay" id="order-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Pedido <span id="modal-order-id"></span></h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Info del cliente -->
+                <div class="card">
+                    <h4>👤 Cliente</h4>
+                    <p><strong>Nombre:</strong> <span id="modal-customer-name"></span></p>
+                    <p><strong>Teléfono:</strong> <span id="modal-customer-phone"></span></p>
+                    <p><strong>Dirección:</strong> <span id="modal-address"></span></p>
+                    <p id="modal-notes-container"><strong>Notas:</strong> <span id="modal-notes" style="color: var(--danger);"></span></p>
+                </div>
+                
+                <!-- Productos -->
+                <div class="card">
+                    <h4>🍽️ Productos</h4>
+                    <div id="modal-items"></div>
+                </div>
+                
+                <!-- Comentarios -->
+                <div class="comments-section">
+                    <h4>💬 Comentarios</h4>
+                    <div class="comments-list" id="modal-comments"></div>
+                    <div class="comment-form">
+                        <input type="text" id="comment-input" class="form-control" 
+                               placeholder="Escribe un mensaje al cliente...">
+                        <button class="btn btn-primary" onclick="sendComment()">Enviar</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" id="modal-actions">
+                <!-- Botones dinámicos según estado -->
+            </div>
+        </div>
+    </div>
+    
+    <script src="/js/app.js"></script>
+    <script>
+        // Verificar autenticación
+        if (!Auth.isAuthenticated()) {
+            window.location.href = '/login';
+        }
+        
+        const user = Auth.getUser();
+        if (user.role !== 'COCINA') {
+            Auth.redirectBasedOnRole();
+        }
+        
+        let orders = [];
+        let currentOrderId = null;
+        let sseConnection = null;
+        let commentSSE = null;
+        
+        async function loadOrders() {
+            try {
+                orders = await API.getKitchenOrders();
+                renderOrders();
+                connectSSE();
+            } catch (error) {
+                console.error('Error loading orders:', error);
+            }
+        }
+        
+        function renderOrders() {
+            const nuevos = orders.filter(o => o.status === 'RECIBIDO');
+            const preparando = orders.filter(o => o.status === 'PREPARANDO');
+            const listos = orders.filter(o => o.status === 'LISTO');
+            
+            // Actualizar contadores
+            document.getElementById('count-nuevos').textContent = nuevos.length;
+            document.getElementById('count-preparando').textContent = preparando.length;
+            document.getElementById('count-listos').textContent = listos.length;
+            document.getElementById('stats-today').textContent = `Pedidos: ${orders.length}`;
+            
+            // Renderizar cada columna
+            renderColumn('orders-nuevos', nuevos, true);
+            renderColumn('orders-preparando', preparando, false);
+            renderColumn('orders-listos', listos, false);
+        }
+        
+        function renderColumn(containerId, ordersList, isNew) {
+            const container = document.getElementById(containerId);
+            
+            if (ordersList.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: var(--gray);">Sin pedidos</p>';
+                return;
+            }
+            
+            // Ordenar por más antiguo primero
+            ordersList.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            
+            container.innerHTML = ordersList.map(order => `
+                <div class="kitchen-order-card ${isNew ? 'new' : ''}" onclick="openOrderDetail('${order.id}')">
+                    <div class="order-header">
+                        <span class="order-id">#${order.id.substring(0, 8)}</span>
+                        <span class="order-time">${UI.formatTime(order.createdAt)}</span>
+                    </div>
+                    <div class="order-customer">
+                        <strong>${order.customerName}</strong>
+                    </div>
+                    <div class="order-items-preview">
+                        ${order.items.map(i => `${i.quantity}x ${i.productName}`).join(', ')}
+                    </div>
+                    ${order.notes ? `<div style="color: var(--danger); font-size: 0.8rem;">📝 ${order.notes}</div>` : ''}
+                    <div style="margin-top: 10px;">
+                        ${getActionButton(order)}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function getActionButton(order) {
+            switch(order.status) {
+                case 'RECIBIDO':
+                    return `<button class="btn btn-warning btn-sm" onclick="event.stopPropagation(); updateStatus('${order.id}', 'PREPARANDO')">▶ Preparar</button>`;
+                case 'PREPARANDO':
+                    return `<button class="btn btn-success btn-sm" onclick="event.stopPropagation(); updateStatus('${order.id}', 'LISTO')">✓ Listo</button>`;
+                case 'LISTO':
+                    return `<span style="color: var(--gray);">Esperando repartidor 🛵</span>`;
+                default:
+                    return '';
+            }
+        }
+        
+        async function updateStatus(orderId, newStatus) {
+            try {
+                await API.updateOrderStatus(orderId, newStatus);
+                UI.showAlert(`Pedido actualizado a: ${newStatus}`, 'success');
+            } catch (error) {
+                UI.showAlert('Error al actualizar el pedido', 'error');
+            }
+        }
+        
+        async function openOrderDetail(orderId) {
+            currentOrderId = orderId;
+            const order = orders.find(o => o.id === orderId);
+            
+            if (!order) return;
+            
+            // Llenar modal
+            document.getElementById('modal-order-id').textContent = '#' + orderId.substring(0, 8);
+            document.getElementById('modal-customer-name').textContent = order.customerName;
+            document.getElementById('modal-customer-phone').textContent = order.customerPhone || 'No disponible';
+            document.getElementById('modal-address').textContent = order.deliveryAddress;
+            
+            const notesContainer = document.getElementById('modal-notes-container');
+            if (order.notes) {
+                document.getElementById('modal-notes').textContent = order.notes;
+                notesContainer.style.display = 'block';
+            } else {
+                notesContainer.style.display = 'none';
+            }
+            
+            // Items
+            document.getElementById('modal-items').innerHTML = order.items.map(item => `
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
+                    <span style="font-size: 1.1rem;"><strong>${item.quantity}x</strong> ${item.productName}</span>
+                </div>
+            `).join('');
+            
+            // Botones de acción
+            renderModalActions(order);
+            
+            // Cargar comentarios
+            await loadComments(orderId);
+            
+            // Conectar SSE de comentarios
+            connectCommentSSE(orderId);
+            
+            // Mostrar modal
+            document.getElementById('order-modal').classList.add('active');
+        }
+        
+        function renderModalActions(order) {
+            const container = document.getElementById('modal-actions');
+            
+            switch(order.status) {
+                case 'RECIBIDO':
+                    container.innerHTML = `
+                        <button class="btn btn-warning btn-lg" onclick="updateStatusAndClose('${order.id}', 'PREPARANDO')">
+                            ▶ Empezar a Preparar
+                        </button>
+                    `;
+                    break;
+                case 'PREPARANDO':
+                    container.innerHTML = `
+                        <button class="btn btn-success btn-lg" onclick="updateStatusAndClose('${order.id}', 'LISTO')">
+                            ✓ Marcar como Listo
+                        </button>
+                    `;
+                    break;
+                case 'LISTO':
+                    container.innerHTML = `
+                        <span style="color: var(--gray);">Esperando que un repartidor tome el pedido 🛵</span>
+                    `;
+                    break;
+                default:
+                    container.innerHTML = '';
+            }
+        }
+        
+        async function updateStatusAndClose(orderId, newStatus) {
+            await updateStatus(orderId, newStatus);
+            closeModal();
+        }
+        
+        function closeModal() {
+            document.getElementById('order-modal').classList.remove('active');
+            currentOrderId = null;
+            
+            if (commentSSE) {
+                commentSSE.close();
+                commentSSE = null;
+            }
+        }
+        
+        async function loadComments(orderId) {
+            try {
+                const comments = await API.getComments(orderId);
+                renderComments(comments);
+            } catch (error) {
+                console.error('Error loading comments:', error);
+            }
+        }
+        
+        function renderComments(comments) {
+            const container = document.getElementById('modal-comments');
+            
+            if (comments.length === 0) {
+                container.innerHTML = '<p style="color: var(--gray); text-align: center;">Sin comentarios</p>';
+                return;
+            }
+            
+            container.innerHTML = comments.map(comment => `
+                <div class="comment role-${comment.userRole}" data-comment-id="${comment.id}">
+                    <div class="comment-header">
+                        <span class="comment-author">
+                            ${UI.getRoleIcon(comment.userRole)} ${comment.userName}
+                        </span>
+                        <span class="comment-time">${UI.formatTime(comment.createdAt)}</span>
+                    </div>
+                    <div class="comment-message">${comment.message}</div>
+                </div>
+            `).join('');
+            
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function connectCommentSSE(orderId) {
+            if (commentSSE) {
+                commentSSE.close();
+            }
+            
+            commentSSE = new EventSource(`/api/orders/${orderId}/comments/stream`);
+            commentSSE.onmessage = (event) => {
+                const comment = JSON.parse(event.data);
+                addCommentToList(comment);
+            };
+        }
+        
+        function addCommentToList(comment) {
+            const container = document.getElementById('modal-comments');
+            
+            // Evitar duplicados
+            if (container.querySelector(`[data-comment-id="${comment.id}"]`)) {
+                return;
+            }
+            
+            const noComments = container.querySelector('p');
+            if (noComments) {
+                container.innerHTML = '';
+            }
+            
+            container.innerHTML += `
+                <div class="comment role-${comment.userRole}" data-comment-id="${comment.id}">
+                    <div class="comment-header">
+                        <span class="comment-author">
+                            ${UI.getRoleIcon(comment.userRole)} ${comment.userName}
+                        </span>
+                        <span class="comment-time">${UI.formatTime(comment.createdAt)}</span>
+                    </div>
+                    <div class="comment-message">${comment.message}</div>
+                </div>
+            `;
+            
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        async function sendComment() {
+            const input = document.getElementById('comment-input');
+            const message = input.value.trim();
+            
+            if (!message || !currentOrderId) return;
+            
+            try {
+                const comment = await API.addComment(currentOrderId, message);
+                input.value = '';
+                // Mostrar comentario inmediatamente (optimistic update)
+                if (comment) {
+                    addCommentToList(comment);
+                }
+            } catch (error) {
+                UI.showAlert('Error al enviar comentario', 'error');
+            }
+        }
+        
+        // Enviar comentario con Enter
+        document.getElementById('comment-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendComment();
+            }
+        });
+        
+        function connectSSE() {
+            sseConnection = new EventSource('/api/orders/stream');
+            
+            sseConnection.onopen = () => {
+                document.getElementById('connection-status').textContent = '🟢 Conectado';
+            };
+            
+            sseConnection.onerror = () => {
+                document.getElementById('connection-status').textContent = '🔴 Desconectado';
+                // Intentar reconectar
+                setTimeout(() => {
+                    if (sseConnection.readyState === EventSource.CLOSED) {
+                        connectSSE();
+                    }
+                }, 5000);
+            };
+            
+            sseConnection.onmessage = (event) => {
+                const orderEvent = JSON.parse(event.data);
+                handleOrderEvent(orderEvent);
+            };
+        }
+        
+        function handleOrderEvent(event) {
+            console.log('Order event:', event);
+            
+            switch(event.eventType) {
+                case 'CREATED':
+                    // Agregar nuevo pedido
+                    if (event.order && !orders.find(o => o.id === event.order.id)) {
+                        orders.push(event.order);
+                        renderOrders();
+                        playNotificationSound();
+                        UI.showAlert('🆕 Nuevo pedido recibido!', 'info');
+                    }
+                    break;
+                    
+                case 'STATUS_CHANGED':
+                    // Actualizar pedido existente
+                    const orderIndex = orders.findIndex(o => o.id === event.orderId);
+                    if (orderIndex !== -1 && event.order) {
+                        // Si el estado es EN_CAMINO o ENTREGADO, remover de la vista de cocina
+                        if (event.status === 'EN_CAMINO' || event.status === 'ENTREGADO') {
+                            orders.splice(orderIndex, 1);
+                        } else {
+                            orders[orderIndex] = event.order;
+                        }
+                        renderOrders();
+                        
+                        // Actualizar modal si está abierto
+                        if (currentOrderId === event.orderId && event.order) {
+                            renderModalActions(event.order);
+                        }
+                    }
+                    break;
+            }
+        }
+        
+        function playNotificationSound() {
+            // Crear un sonido de notificación simple
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (e) {
+                console.log('Audio not supported');
+            }
+        }
+        
+        // Cleanup al salir
+        window.addEventListener('beforeunload', () => {
+            if (sseConnection) sseConnection.close();
+            if (commentSSE) commentSSE.close();
+        });
+        
+        // Inicializar
+        loadOrders();
+    </script>
+</body>
+</html>

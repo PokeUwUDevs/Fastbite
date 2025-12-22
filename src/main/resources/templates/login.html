@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastBite - Login</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="logo">🍔</div>
+            <h1>FastBite</h1>
+            
+            <div id="alert-container"></div>
+            
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Contraseña</label>
+                    <input type="password" id="password" class="form-control" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">
+                    Iniciar Sesión
+                </button>
+            </form>
+            
+            <div class="auth-footer">
+                ¿No tienes cuenta? <a href="/register">Regístrate</a>
+                <br><br>
+                <a href="/" style="color: var(--gray);">← Volver al inicio</a>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/js/app.js"></script>
+    <script>
+        // Si ya está autenticado, redirigir
+        if (Auth.isAuthenticated()) {
+            Auth.redirectBasedOnRole();
+        }
+        
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await API.login(email, password);
+                
+                if (response) {
+                    Auth.saveAuth(response);
+                    Auth.redirectBasedOnRole();
+                } else {
+                    showError('Credenciales inválidas');
+                }
+            } catch (error) {
+                showError('Error al iniciar sesión');
+            }
+        });
+        
+        function showError(message) {
+            const container = document.getElementById('alert-container');
+            container.innerHTML = `<div class="alert alert-error">${message}</div>`;
+        }
+    </script>
+</body>
+</html>

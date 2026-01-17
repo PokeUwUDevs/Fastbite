@@ -1,7 +1,7 @@
 spring:
   application:
     name: fastbite
-  
+
   data:
     mongodb:
       auto-index-creation: true
@@ -16,9 +16,9 @@ spring:
 server:
   port: 8080
 
-# JWT Configuration
+# JWT Configuration (hardcodeado)
 jwt:
-  secret: fastbite-super-secret-key-that-should-be-at-least-256-bits-long-for-hs256
+  secret: m3xOhI2Jur8FQZqyFsu4sKINakePXZCuQFBRot4Bvhc=
   expiration: 86400000  # 24 hours in milliseconds
 
 # Logging

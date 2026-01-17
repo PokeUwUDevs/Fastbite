@@ -2,7 +2,7 @@ name: Construir y Publicar Docker
 
 on:
   push:
-    branches: [ "main" ] # Solo se ejecuta cuando el código llega a Main
+    branches: [ "main" ]
 
 jobs:
   push_to_registry:
@@ -16,12 +16,12 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }} # Configurar en Secrets del repo
-          password: ${{ secrets.DOCKER_PASSWORD }} # Configurar en Secrets del repo
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/fastbite:latest
+          tags: noru08/fastbite:latest

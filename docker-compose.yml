@@ -15,5 +15,18 @@ services:
       timeout: 5s
       retries: 5
 
+  # --- NUEVO: Tu aplicación descargada de Docker Hub ---
+  app:
+    image: noru08/fastbite:latest  # <--- ¡Aquí está la magia!
+    container_name: fastbite-app
+    ports:
+      - "8080:8080"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      # IMPORTANTE: Sobrescribimos 'localhost' por 'mongo' para que se hablen entre contenedores
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/fastbite
+
 volumes:
   mongo-data:

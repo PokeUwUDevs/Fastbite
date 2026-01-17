@@ -5,13 +5,12 @@ spring:
   data:
     mongodb:
       auto-index-creation: true
+      uri: mongodb://localhost:27017/fastbite
 
   thymeleaf:
     cache: false
     prefix: classpath:/templates/
     suffix: .html
-  mongodb:
-    uri: mongodb://localhost:27017/fastbite
 
 server:
   port: 8080

@@ -10,7 +10,7 @@ COPY settings.gradle .
 COPY build.gradle .
 
 # Copiar shared si existe
-COPY shared shared/
+# COPY shared shared/
 
 # Copiar código del servicio
 COPY services/notification-service services/notification-service/

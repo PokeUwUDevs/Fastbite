@@ -1,35 +1,21 @@
-# --- ETAPA 1: Construcción ---
+# --- ETAPA 1: Build ---
 FROM eclipse-temurin:21-jdk-jammy AS builder
-
 WORKDIR /app
 
-# Copiar archivos de Gradle
-COPY gradlew .
-COPY gradle gradle/
-COPY settings.gradle .
-COPY build.gradle .
+# Copiar TODO el repo
+COPY . .
 
-# Copiar shared si existe
-# COPY shared shared/
-
-# Copiar código del servicio
-COPY services/order-service services/order-service/
-
-# Dar permisos
 RUN chmod +x gradlew
 
-# Compilar
+# Compilar solo el servicio
 RUN ./gradlew :services:order-service:bootJar --no-daemon -x test
 
-# --- ETAPA 2: Ejecución ---
+# --- ETAPA 2: Runtime ---
 FROM eclipse-temurin:21-jre-jammy
-
 WORKDIR /app
 
-# Instalar curl para health checks
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Copiar JAR
 COPY --from=builder /app/services/order-service/build/libs/*.jar app.jar
 
 EXPOSE 8083

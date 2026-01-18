@@ -137,31 +137,31 @@ services:
     networks:
       - fastbite-network
 
-  notification-service:
-    build:
-      context: .
-      dockerfile: services/notification-service/Dockerfile
-    container_name: fastbite-notification-service
-    restart: unless-stopped
-    depends_on:
-      mongo:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    ports:
-      - "8084:8084"
-    environment:
-      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/fastbite-notifications
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      SPRING_PROFILES_ACTIVE: docker
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - fastbite-network
+  # notification-service:
+  #   build:
+  #     context: .
+  #     dockerfile: services/notification-service/Dockerfile
+  #   container_name: fastbite-notification-service
+  #   restart: unless-stopped
+  #   depends_on:
+  #     mongo:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
+  #   ports:
+  #     - "8084:8084"
+  #   environment:
+  #     SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/fastbite-notifications
+  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  #     SPRING_PROFILES_ACTIVE: docker
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s
+  #   networks:
+  #     - fastbite-network
 
   frontend:
     build:

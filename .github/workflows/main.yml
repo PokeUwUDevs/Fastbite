@@ -1,0 +1,40 @@
+name: Validar Pull Request
+
+on:
+  pull_request:
+    branches: [ "main", "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:6.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      # AQUÍ ESTÁ EL CAMBIO: Usamos Java 21
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'      # Versión especificada
+          distribution: 'temurin' # Eclipse Temurin es muy estable
+
+      - name: Dar permisos a gradlew
+        run: chmod +x gradlew
+
+      - name: Ejecutar pruebas con Gradle
+        run: ./gradlew test

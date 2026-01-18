@@ -1,35 +1,26 @@
-# --- ETAPA 1: Construcción ---
+# --- ETAPA 1: Build ---
 FROM eclipse-temurin:21-jdk-jammy AS builder
 
 WORKDIR /app
 
-# Copiar archivos de Gradle
-COPY gradlew .
-COPY gradle gradle/
-COPY settings.gradle .
-COPY build.gradle .
+# Copiar TODO el monorepo
+COPY . .
 
-# Copiar shared si existe
-# COPY shared shared/
-
-# Copiar código del frontend
-COPY frontend frontend/
-
-# Dar permisos
+# Permisos para Gradle
 RUN chmod +x gradlew
 
-# Compilar
+# Compilar solo el frontend
 RUN ./gradlew :frontend:bootJar --no-daemon -x test
 
-# --- ETAPA 2: Ejecución ---
+# --- ETAPA 2: Runtime ---
 FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
 
-# Instalar curl para health checks
+# curl para healthcheck
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Copiar JAR
+# Copiar el JAR generado
 COPY --from=builder /app/frontend/build/libs/*.jar app.jar
 
 EXPOSE 8080

@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: fastbite-frontend
+
+  thymeleaf:
+    cache: false
+    prefix: classpath:/templates/
+    suffix: .html
+
+server:
+  port: 8080
+
+services:
+  user: http://localhost:8081
+  restaurant: http://localhost:8082
+  order: http://localhost:8083
+  notification: http://localhost:8084
+
+logging:
+  level:
+    com.fastbite.frontend: DEBUG

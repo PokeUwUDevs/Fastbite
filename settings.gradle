@@ -1,1 +1,13 @@
 rootProject.name = 'fastbite'
+
+// Módulo compartido
+//include 'shared:fastbite-common'
+
+// Microservicios
+include 'services:user-service'
+include 'services:restaurant-service'
+include 'services:order-service'
+include 'services:notification-service'
+
+// Frontend (opcional si usas Thymeleaf con Gradle)
+include 'frontend'

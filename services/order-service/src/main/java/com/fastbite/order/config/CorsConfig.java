@@ -1,4 +1,4 @@
-package com.fastbite.user.config;
+package com.fastbite.order.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.config.CorsRegistry;

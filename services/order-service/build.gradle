@@ -11,17 +11,14 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-mongodb-reactive'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    
-    // Kafka (para eventos)
-    implementation 'org.springframework.kafka:spring-kafka'
-    implementation 'io.projectreactor.kafka:reactor-kafka'
+
+    // // Kafka (para eventos)
+    // implementation 'org.springframework.kafka:spring-kafka'
+    // implementation 'io.projectreactor.kafka:reactor-kafka'
 
     // Resilience4j (circuit breaker, retry, etc.)
     implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.1.0'
     implementation 'io.github.resilience4j:resilience4j-reactor:2.1.0'
-    
-    // WebClient (para llamar a otros servicios)
-    implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
     // Lombok
     compileOnly 'org.projectlombok:lombok'

@@ -1,5 +1,8 @@
 name: Construir y Publicar Docker
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ "main" ]

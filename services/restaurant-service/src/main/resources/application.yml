@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: restaurant-service
+  
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/fastbite-restaurants
+      auto-index-creation: true
+
+server:
+  port: 8082
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.fastbite.restaurant: DEBUG
+
+---
+# Perfil Docker
+spring:
+  config:
+    activate:
+      on-profile: docker
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://mongo:27017/fastbite-restaurants}

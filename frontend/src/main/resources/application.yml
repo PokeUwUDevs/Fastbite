@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: fastbite-frontend
+  
+  thymeleaf:
+    cache: false
+    prefix: classpath:/templates/
+    suffix: .html
+
+server:
+  port: 8080
+
+services:
+  user: http://localhost:8081
+  restaurant: http://localhost:8082
+  order: http://localhost:8083
+  notification: http://localhost:8084
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.fastbite.frontend: DEBUG
+
+---
+# Perfil Docker
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+services:
+  user: ${SERVICES_USER:http://user-service:8081}
+  restaurant: ${SERVICES_RESTAURANT:http://restaurant-service:8082}
+  order: ${SERVICES_ORDER:http://order-service:8083}
+  notification: ${SERVICES_NOTIFICATION:http://notification-service:8084}

@@ -10,7 +10,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'  // ← YA ESTÁ
     implementation 'org.springframework.boot:spring-boot-starter-data-mongodb-reactive'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    
     // Kafka (para eventos)
     implementation 'org.springframework.kafka:spring-kafka'
     implementation 'io.projectreactor.kafka:reactor-kafka'

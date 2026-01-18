@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: user-service
+  
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/fastbite-users
+      auto-index-creation: true
+
+server:
+  port: 8081
+
+jwt:
+  secret: fastbite-super-secret-key-that-should-be-at-least-256-bits-long-for-hs256
+  expiration: 86400000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.fastbite.user: DEBUG
+
+---
+# Perfil Docker
+spring:
+  config:
+    activate:
+      on-profile: docker
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://mongo:27017/fastbite-users}
